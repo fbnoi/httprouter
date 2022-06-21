@@ -67,11 +67,15 @@ func (rt *RouteTree) GeneratePath(name string, ps Params) string {
 		)
 		for !node.root {
 			if node.wildcard {
-				p := interfaceToString(ps.ByName(node.name))
-				if !node.fit(p) {
-					panic(fmt.Sprintf("%s not compete with %s", p, node.rawPattern))
+				p := ps.ByName(node.name)
+				if p == nil {
+					panic(fmt.Sprintf("route parameter %s is required", node.name))
 				}
-				s = append(s, url.PathEscape(p))
+				pStr := interfaceToString(p)
+				if !node.fit(pStr) {
+					panic(fmt.Sprintf("%s not compete with %s for parameter %s", p, node.rawPattern, node.name))
+				}
+				s = append(s, url.PathEscape(pStr))
 				rp[node.name] = nil
 			} else {
 				s = append(s, node.name)

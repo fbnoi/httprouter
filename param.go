@@ -8,6 +8,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+func PS() (ps Params) {
+	return ps
+}
+
 type Param struct {
 	key   string
 	value interface{}
@@ -15,7 +19,24 @@ type Param struct {
 
 type Params []Param
 
-// return value by name
+func (ps Params) Add(name string, val interface{}) Params {
+	ps = append(ps, Param{key: name, value: val})
+	return ps
+}
+
+func (ps Params) Remove(name string) Params {
+	if len(ps) == 0 {
+		return ps
+	}
+	for i, p := range ps {
+		if p.key == name {
+			ps = append(ps[:i], ps[i+1:]...)
+		}
+	}
+
+	return ps
+}
+
 func (ps Params) ByName(name string) interface{} {
 	for _, p := range ps {
 		if p.key == name {

@@ -3,6 +3,7 @@ package httprouter
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 )
@@ -53,15 +54,48 @@ type RouteTree struct {
 	mapper          map[string]*RouteNode
 }
 
-// func (rt *RouteTree) Generate(name string, ps Params) string {
-// 	if node, ok := rt.GetRoute(name); ok {
-// 		path := node.fullPath
-// 		for _, param := range ps {
-// 			pr := param.key
-// 		}
-// 	}
-// 	panic(fmt.Sprintf("route \"%s\" don't exist"))
-// }
+func (rt *RouteTree) SetNotFoundHandleFunc(fn HandleFunc) {
+	rt.notFoundHandler = fn
+}
+
+func (rt *RouteTree) GeneratePath(name string, ps Params) string {
+	if node, ok := rt.GetRoute(name); ok {
+		var (
+			s   []string
+			rp  = make(map[string]interface{})
+			qpb = &strings.Builder{}
+		)
+		for !node.root {
+			if node.wildcard {
+				p := interfaceToString(ps.ByName(node.name))
+				if !node.fit(p) {
+					panic(fmt.Sprintf("%s not compete with %s", p, node.rawPattern))
+				}
+				s = append(s, url.PathEscape(p))
+				rp[node.name] = nil
+			} else {
+				s = append(s, node.name)
+			}
+			node = node.parent
+		}
+		for _, p := range ps {
+			if _, ok := rp[p.key]; !ok {
+				qpb.WriteString(url.QueryEscape(p.key))
+				qpb.WriteString("=")
+				qpb.WriteString(url.QueryEscape(interfaceToString(p.value)))
+				qpb.WriteString("&")
+			}
+		}
+		path, query := cleanPath(strings.Join(s, "/")), strings.Trim(qpb.String(), "&")
+
+		if query == "" {
+			return path
+		}
+
+		return path + "?" + query
+	}
+	panic(fmt.Sprintf("route \"%s\" don't exist", name))
+}
 
 func (rt *RouteTree) GetRoute(name string) (r *RouteNode, ok bool) {
 	r, ok = rt.mapper[name]

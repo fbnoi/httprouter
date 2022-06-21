@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"log"
 	"net/http"
 
@@ -17,7 +18,14 @@ func main() {
 	}).GET("hello_world", "/hello/world", func(r *http.Request, w http.ResponseWriter, ps xrouter.Params) {
 		w.Write([]byte("hello"))
 	}).GET("test", "/:test", func(r *http.Request, w http.ResponseWriter, ps xrouter.Params) {
-		w.Write([]byte("123"))
+		io.WriteString(
+			w, router.GeneratePath("test",
+				xrouter.PS().
+					Add("test", ps.GetString("test")).
+					Add("params", "hello world").
+					Add("name", 1234123),
+			),
+		)
 	})
 
 	server := &http.Server{

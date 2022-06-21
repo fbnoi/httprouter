@@ -6,8 +6,7 @@ package httprouter
 
 import (
 	"fmt"
-
-	"github.com/pkg/errors"
+	"strconv"
 )
 
 // cleanPath is the URL version of path.Clean, it returns a canonical URL path
@@ -154,16 +153,44 @@ func bufApp(buf *[]byte, s string, w int, c byte) {
 	b[w] = c
 }
 
-func panicf(format string, vals ...interface{}) {
-	if len(vals) > 0 {
-		panic(fmt.Sprintf(format, vals...))
+func interfaceToString(value interface{}) string {
+	var key string
+	if value == nil {
+		return key
 	}
-	panic(format)
-}
-
-func errorf(format string, vals ...interface{}) error {
-	if len(vals) > 0 {
-		return errors.New(fmt.Sprintf(format, vals...))
+	switch conv := value.(type) {
+	case float64:
+		key = strconv.FormatFloat(conv, 'f', -1, 64)
+	case float32:
+		key = strconv.FormatFloat(float64(conv), 'f', -1, 64)
+	case int:
+		key = strconv.Itoa(conv)
+	case uint:
+		key = strconv.Itoa(int(conv))
+	case int8:
+		key = strconv.Itoa(int(conv))
+	case uint8:
+		key = strconv.Itoa(int(conv))
+	case int16:
+		key = strconv.Itoa(int(conv))
+	case uint16:
+		key = strconv.Itoa(int(conv))
+	case int32:
+		key = strconv.Itoa(int(conv))
+	case uint32:
+		key = strconv.Itoa(int(conv))
+	case int64:
+		key = strconv.FormatInt(conv, 10)
+	case uint64:
+		key = strconv.FormatUint(conv, 10)
+	case string:
+		key = value.(string)
+	case []byte:
+		key = string(value.([]byte))
+	case bool:
+		key = strconv.FormatBool(conv)
+	default:
+		panic(fmt.Sprintf("%v convert to string failed", value))
 	}
-	return errors.New(format)
+	return key
 }

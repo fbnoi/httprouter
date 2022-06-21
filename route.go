@@ -11,7 +11,7 @@ type RouteNode struct {
 	children   []*RouteNode
 	root       bool
 	leaf       bool
-	path       string
+	name       string
 	fullPath   string
 	routeName  string
 	pattern    *regexp.Regexp
@@ -57,7 +57,7 @@ func (routeNode *RouteNode) search(path string, getParams func() *Params) (*Rout
 				k = child
 				//save the params if necessary
 				if child.wildcard {
-					*ps = append(*ps, Param{key: child.path, value: l[at]})
+					*ps = append(*ps, Param{key: child.name, value: l[at]})
 				}
 				// then we need to go further
 				ptr = 0
@@ -104,9 +104,9 @@ func (routeNode *RouteNode) addPath(name, method, path string, handler HandleFun
 			conflict := fmt.Sprintf("route [%s] conflict with [%s]", path, sibling.fullPath)
 			if sibling.wildcard != node.wildcard {
 				switch {
-				case sibling.wildcard && sibling.pattern != nil && sibling.pattern.MatchString(node.path):
+				case sibling.wildcard && sibling.pattern != nil && sibling.pattern.MatchString(node.name):
 					panic(conflict)
-				case node.wildcard && node.pattern != nil && node.pattern.MatchString(sibling.path):
+				case node.wildcard && node.pattern != nil && node.pattern.MatchString(sibling.name):
 					panic(conflict)
 				}
 			} else if sibling.wildcard {
@@ -140,7 +140,7 @@ func (routeNode *RouteNode) pave(path string) *RouteNode {
 		pathNode, ptr := resolvePathSplit2Node(l[i]), 0
 		for ptr < len(currentNode.children) {
 			node := currentNode.children[ptr]
-			if pathNode.path == node.path && pathNode.wildcard == node.wildcard {
+			if pathNode.name == node.name && pathNode.wildcard == node.wildcard {
 				matched = true
 				if i >= lol-1 {
 					return node
@@ -189,7 +189,7 @@ func (routeNode *RouteNode) fit(path string) bool {
 		return true
 	}
 
-	return routeNode.path == path
+	return routeNode.name == path
 }
 
 // getHandlers return the handler stored in the node.
@@ -225,13 +225,13 @@ func (routeNode *RouteNode) setHandler(method string, handleFunc HandleFunc) *Ro
 func resolvePathSplit2Node(pathSplit string) *RouteNode {
 	node := &RouteNode{}
 	if !strings.HasPrefix(pathSplit, ":") {
-		node.path, node.rawPattern, node.wildcard = pathSplit, "", false
+		node.name, node.rawPattern, node.wildcard = pathSplit, "", false
 
 		return node
 	}
 	pathSplit = strings.TrimPrefix(pathSplit, ":")
 	if !strings.Contains(pathSplit, "(") {
-		node.path, node.rawPattern, node.wildcard = pathSplit, "", true
+		node.name, node.rawPattern, node.wildcard = pathSplit, "", true
 
 		return node
 	}
@@ -241,7 +241,7 @@ func resolvePathSplit2Node(pathSplit string) *RouteNode {
 	if err != nil {
 		panic(fmt.Sprintf("resolve path node [%s] failed, error: %s", pathSplit, err))
 	}
-	node.path, node.rawPattern, node.wildcard, node.pattern = path, regStr, true, reg
+	node.name, node.rawPattern, node.wildcard, node.pattern = path, regStr, true, reg
 
 	return node
 }

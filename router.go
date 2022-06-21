@@ -195,7 +195,7 @@ func (rt *RouteTree) All(name, path string, handler HandleFunc) *RouteTree {
 }
 
 func (rt *RouteTree) addPath(name, method, path string, handler HandleFunc) *RouteTree {
-	if !allowMethod(method) {
+	if !AllowMethod(method) {
 		methodNotAllowed(method)
 	}
 	rt.init()
@@ -230,7 +230,7 @@ func (rt *RouteTree) putParams(ps *Params) {
 	}
 }
 
-func allowMethod(method string) bool {
+func AllowMethod(method string) bool {
 	for _, m := range allowed_methods {
 		if method == m {
 			return true

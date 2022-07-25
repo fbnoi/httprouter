@@ -2,16 +2,19 @@ package httprouter
 
 import (
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 )
 
-type RouteNode struct {
-	parent     *RouteNode
-	children   []*RouteNode
+type HandleFunc func(r *http.Request, w http.ResponseWriter, ps Params)
+
+type routeNode struct {
+	parent     *routeNode
+	children   []*routeNode
 	root       bool
 	leaf       bool
-	name       string
+	part       string
 	fullPath   string
 	routeName  string
 	pattern    *regexp.Regexp
@@ -20,50 +23,50 @@ type RouteNode struct {
 	handleFunc map[string]HandleFunc
 }
 
-func (routeNode *RouteNode) RouteName() string {
-	return routeNode.routeName
+func (r *routeNode) RouteName() string {
+	return r.routeName
 }
 
-func (routeNode *RouteNode) FullPath() string {
-	return routeNode.fullPath
+func (r *routeNode) FullPath() string {
+	return r.fullPath
 }
 
 // search the given path, if find, return matched node and a params,
 // if not, return nil, nil.
-func (routeNode *RouteNode) search(path string, getParams func() *Params) (*RouteNode, *Params) {
+func (r *routeNode) search(path string, getParams func() *Params) (*routeNode, *Params) {
 	//split given path to a slice and make a slice of collection.Iterator with the capacity
 	//of the len of path slice. each path item will go through a list of entry, if match then go to
 	//find in this entry's children list. if there is no match in current list, go upper to
 	//find another entry and so on. if no match at all, not found.
 	var (
-		l        = strings.Split(path, "/")
-		ptrStore = make([]int, len(l))
-		k        = routeNode
+		parts    = strings.Split(path, "/")
+		ptrStore = make([]int, len(parts))
+		k        = r
 		at, ptr  = 1, 0
 		ps       = getParams()
 	)
 	// beautyPath always start with '/' and the begin of the path must be "".
 	// search from root entry's children and skip the begin of path slice.
 	// it means that root must match with the begin of path slice.
-	for at >= 1 && at < len(l) {
+	for at >= 1 && at < len(parts) {
 		find := false
 		for ptr < len(k.children) {
 			child := k.children[ptr]
 			// if find fit node
-			if child.fit(l[at]) {
+			if child.fit(parts[at]) {
 				// push Iterator to same position
 				ptrStore[at] = ptr
 				find = true
 				k = child
 				//save the params if necessary
 				if child.wildcard {
-					*ps = append(*ps, Param{key: child.name, value: l[at]})
+					*ps = append(*ps, Param{key: child.part, value: parts[at]})
 				}
 				// then we need to go further
 				ptr = 0
 				at++
 				// but if end, we can not
-				if at >= len(l) {
+				if at >= len(parts) {
 					break
 				}
 				continue
@@ -92,8 +95,8 @@ func (routeNode *RouteNode) search(path string, getParams func() *Params) (*Rout
 }
 
 // addPath add a new path to this node's children, then return the leaf node.
-func (routeNode *RouteNode) addPath(name, method, path string, handler HandleFunc) *RouteNode {
-	node := routeNode.pave(path)
+func (r *routeNode) addPath(name, method, path string, handler HandleFunc) *routeNode {
+	node := r.pave(path)
 	var (
 		pc  = node.parent.children
 		ptr = 0
@@ -104,9 +107,9 @@ func (routeNode *RouteNode) addPath(name, method, path string, handler HandleFun
 			conflict := fmt.Sprintf("route [%s] conflict with [%s]", path, sibling.fullPath)
 			if sibling.wildcard != node.wildcard {
 				switch {
-				case sibling.wildcard && sibling.pattern != nil && sibling.pattern.MatchString(node.name):
+				case sibling.wildcard && sibling.pattern != nil && sibling.pattern.MatchString(node.part):
 					panic(conflict)
-				case node.wildcard && node.pattern != nil && node.pattern.MatchString(sibling.name):
+				case node.wildcard && node.pattern != nil && node.pattern.MatchString(sibling.part):
 					panic(conflict)
 				}
 			} else if sibling.wildcard {
@@ -124,25 +127,25 @@ func (routeNode *RouteNode) addPath(name, method, path string, handler HandleFun
 // pave search the matched node in the tree and then return the matched node.
 // if no matched node exist, find the last matched node and add a new path, then return
 // the last added node.
-func (routeNode *RouteNode) pave(path string) *RouteNode {
+func (r *routeNode) pave(path string) *routeNode {
 	path = strings.TrimLeft(path, "/")
-	if path == "" && !routeNode.root {
-		return routeNode
+	if path == "" && !r.root {
+		return r
 	}
 	var (
-		l           = strings.Split(path, "/")
-		currentNode = routeNode
-		lol         = len(l)
+		parts       = strings.Split(path, "/")
+		currentNode = r
+		lOPart      = len(parts)
 		i           int
 	)
-	for i = 0; i < lol; i++ {
+	for i = 0; i < lOPart; i++ {
 		matched := false
-		pathNode, ptr := resolvePathSplit2Node(l[i]), 0
+		pathNode, ptr := resolvePathPart2Node(parts[i]), 0
 		for ptr < len(currentNode.children) {
 			node := currentNode.children[ptr]
-			if pathNode.name == node.name && pathNode.wildcard == node.wildcard {
+			if pathNode.part == node.part && pathNode.wildcard == node.wildcard {
 				matched = true
-				if i >= lol-1 {
+				if i >= lOPart-1 {
 					return node
 				}
 				currentNode = node
@@ -154,8 +157,8 @@ func (routeNode *RouteNode) pave(path string) *RouteNode {
 			break
 		}
 	}
-	for ; i < lol; i++ {
-		currentNode = currentNode.addChildNode(l[i])
+	for ; i < lOPart; i++ {
+		currentNode = currentNode.addChildNode(parts[i])
 	}
 
 	return currentNode
@@ -163,85 +166,85 @@ func (routeNode *RouteNode) pave(path string) *RouteNode {
 
 // addChildNode add a node to child list
 // if th path is wildcard, add to end, else add to beginning.
-func (routeNode *RouteNode) addChildNode(path string) *RouteNode {
-	node := resolvePathSplit2Node(path)
-	node.root, node.parent = false, routeNode
+func (r *routeNode) addChildNode(path string) *routeNode {
+	node := resolvePathPart2Node(path)
+	node.root, node.parent = false, r
 
-	node.fullPath = fmt.Sprintf("%s/%s", routeNode.fullPath, path)
+	node.fullPath = fmt.Sprintf("%s/%s", r.fullPath, path)
 	if node.wildcard {
-		routeNode.children = append(routeNode.children, node)
+		r.children = append(r.children, node)
 
 		return node
 	}
-	routeNode.children = append([]*RouteNode{node}, routeNode.children...)
+	r.children = append([]*routeNode{node}, r.children...)
 
 	return node
 }
 
 // fit compare the given path with the node path, if match then return true,
 // else return false
-func (routeNode *RouteNode) fit(path string) bool {
-	if routeNode.wildcard {
-		if routeNode.pattern != nil {
-			return routeNode.pattern.MatchString(path)
+func (r *routeNode) fit(part string) bool {
+	if r.wildcard {
+		if r.pattern != nil {
+			return r.pattern.MatchString(part)
 		}
 
 		return true
 	}
 
-	return routeNode.name == path
+	return r.part == part
 }
 
 // getHandlers return the handler stored in the node.
 // if handler exist, return (handler, true), else return (nil, false)
-func (routeNode *RouteNode) getHandler(method string) (handleFunc HandleFunc, ok bool) {
-	if routeNode.handleFunc == nil {
+func (r *routeNode) getHandler(method string) (handleFunc HandleFunc, ok bool) {
+	if r.handleFunc == nil {
 		return nil, false
 	}
-	handleFunc, ok = routeNode.handleFunc[method]
+	handleFunc, ok = r.handleFunc[method]
 
 	return
 }
 
 // setHandlers store a handler with the given method, if the handler in given method already exist,
 // panic
-func (routeNode *RouteNode) setHandler(method string, handleFunc HandleFunc) *RouteNode {
-	routeNode.leaf = true
-	if routeNode.handleFunc == nil {
-		routeNode.handleFunc = make(map[string]HandleFunc)
+func (r *routeNode) setHandler(method string, handleFunc HandleFunc) *routeNode {
+	r.leaf = true
+	if r.handleFunc == nil {
+		r.handleFunc = make(map[string]HandleFunc)
 	}
-	if _, ok := routeNode.handleFunc[method]; ok {
-		panic(fmt.Sprintf("method [%s] on route [%s] already exist", method, routeNode.fullPath))
+	if _, ok := r.handleFunc[method]; ok {
+		panic(fmt.Sprintf("method [%s] on route [%s] already exist", method, r.fullPath))
 	}
-	routeNode.handleFunc[method] = handleFunc
+	r.handleFunc[method] = handleFunc
 
-	return routeNode
+	return r
 }
 
 // resolvePathNode resolve the given path string, if it is a static path,
 // return (name, nil, false), if it is a wildcard, return (name, nil, true),
 // if it is a wildcard with a pattern, return (name, pattern, true), if the pattern
 // compiled failed, panic
-func resolvePathSplit2Node(pathSplit string) *RouteNode {
-	node := &RouteNode{}
-	if !strings.HasPrefix(pathSplit, ":") {
-		node.name, node.rawPattern, node.wildcard = pathSplit, "", false
+func resolvePathPart2Node(pathPart string) *routeNode {
+	node := &routeNode{}
+	if !strings.HasPrefix(pathPart, ":") {
+		node.part, node.rawPattern, node.wildcard = pathPart, "", false
 
 		return node
 	}
-	pathSplit = strings.TrimPrefix(pathSplit, ":")
-	if !strings.Contains(pathSplit, "(") {
-		node.name, node.rawPattern, node.wildcard = pathSplit, "", true
+	pathPart = strings.TrimPrefix(pathPart, ":")
+	if !strings.Contains(pathPart, "(") {
+		node.part, node.rawPattern, node.wildcard = pathPart, "", true
 
 		return node
 	}
-	path := pathSplit[:strings.Index(pathSplit, "(")]
-	regStr := pathSplit[strings.Index(pathSplit, "(")+1 : len(pathSplit)-1]
+	path := pathPart[:strings.Index(pathPart, "(")]
+	regStr := pathPart[strings.Index(pathPart, "(")+1 : len(pathPart)-1]
 	reg, err := regexp.Compile(regStr)
 	if err != nil {
-		panic(fmt.Sprintf("resolve path node [%s] failed, error: %s", pathSplit, err))
+		panic(fmt.Sprintf("resolve path node [%s] failed, error: %s", pathPart, err))
 	}
-	node.name, node.rawPattern, node.wildcard, node.pattern = path, regStr, true, reg
+	node.part, node.rawPattern, node.wildcard, node.pattern = path, regStr, true, reg
 
 	return node
 }

@@ -8,6 +8,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const route_key = "_route"
+
 func PS() (ps Params) {
 	return ps
 }
@@ -22,6 +24,10 @@ type Params []Param
 func (ps Params) Add(name string, val interface{}) Params {
 	ps = append(ps, Param{key: name, value: val})
 	return ps
+}
+
+func (ps Params) AddRoute(r *routeNode) Params {
+	return ps.Add(route_key, r)
 }
 
 func (ps Params) Remove(name string) Params {
@@ -56,6 +62,14 @@ func (ps Params) GetInt(name string) int {
 
 func (ps Params) GetBytes(name string) []byte {
 	return ps.ByName(name).([]byte)
+}
+
+func (ps Params) GetBool(name string) bool {
+	return ps.ByName(name).(bool)
+}
+
+func (ps Params) GetRoute() *routeNode {
+	return ps.ByName(route_key).(*routeNode)
 }
 
 // DecodeQuery decode a query to a params

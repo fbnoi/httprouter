@@ -8,12 +8,10 @@ import (
 	"sync"
 )
 
-type HandleFunc func(r *http.Request, w http.ResponseWriter, ps Params)
-
 func NewRouteTree(config *Config) *RouteTree {
 	return &RouteTree{
 		once: &sync.Once{},
-		RouteNode: &RouteNode{
+		routeNode: &routeNode{
 			root: true,
 			leaf: false,
 		},
@@ -46,12 +44,12 @@ type Config struct {
 // handler.
 // TODO: add name to route as to generate a url by name
 type RouteTree struct {
-	*RouteNode
+	*routeNode
 	once            *sync.Once
 	paramsPool      sync.Pool
 	config          *Config
 	notFoundHandler HandleFunc
-	mapper          map[string]*RouteNode
+	mapper          map[string]*routeNode
 }
 
 func (rt *RouteTree) SetNotFoundHandleFunc(fn HandleFunc) {
@@ -59,7 +57,7 @@ func (rt *RouteTree) SetNotFoundHandleFunc(fn HandleFunc) {
 }
 
 func (rt *RouteTree) GeneratePath(name string, ps Params) string {
-	if node, ok := rt.GetRoute(name); ok {
+	if node, ok := rt.RouteNode(name); ok {
 		var (
 			s   []string
 			rp  = make(map[string]interface{})
@@ -67,18 +65,18 @@ func (rt *RouteTree) GeneratePath(name string, ps Params) string {
 		)
 		for !node.root {
 			if node.wildcard {
-				p := ps.ByName(node.name)
+				p := ps.ByName(node.part)
 				if p == nil {
-					panic(fmt.Sprintf("route parameter %s is required", node.name))
+					panic(fmt.Sprintf("route parameter %s is required", node.part))
 				}
 				pStr := interfaceToString(p)
 				if !node.fit(pStr) {
-					panic(fmt.Sprintf("%s not compete with %s for parameter %s", p, node.rawPattern, node.name))
+					panic(fmt.Sprintf("%s not compete with %s for parameter %s", p, node.rawPattern, node.part))
 				}
 				s = append(s, url.PathEscape(pStr))
-				rp[node.name] = nil
+				rp[node.part] = nil
 			} else {
-				s = append(s, node.name)
+				s = append(s, node.part)
 			}
 			node = node.parent
 		}
@@ -101,7 +99,7 @@ func (rt *RouteTree) GeneratePath(name string, ps Params) string {
 	panic(fmt.Sprintf("route \"%s\" don't exist", name))
 }
 
-func (rt *RouteTree) GetRoute(name string) (r *RouteNode, ok bool) {
+func (rt *RouteTree) RouteNode(name string) (r *routeNode, ok bool) {
 	r, ok = rt.mapper[name]
 	return
 }
@@ -146,14 +144,14 @@ func (rt *RouteTree) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		rt.notFoundHandler(r, w, *params)
 		return
 	}
-
+	params.AddRoute(node)
 	handleFunc(r, w, *params)
 }
 
 func (rt *RouteTree) Group(path string, fn func(*RouteTree), mds HandleFunc) {
-	node := rt.RouteNode.pave(path)
+	node := rt.routeNode.pave(path)
 	tree := &RouteTree{
-		RouteNode: node,
+		routeNode: node,
 		once:      &sync.Once{},
 	}
 	fn(tree)
@@ -199,8 +197,8 @@ func (rt *RouteTree) addPath(name, method, path string, handler HandleFunc) *Rou
 		methodNotAllowed(method)
 	}
 	rt.init()
-	if _, ok := rt.GetRoute(name); !ok {
-		rt.mapper[name] = rt.RouteNode.addPath(name, method, path, handler)
+	if _, ok := rt.RouteNode(name); !ok {
+		rt.mapper[name] = rt.routeNode.addPath(name, method, path, handler)
 
 		return rt
 	}
@@ -213,7 +211,7 @@ func (rt *RouteTree) init() *RouteTree {
 			ps := make(Params, 0)
 			return &ps
 		}
-		rt.mapper = make(map[string]*RouteNode)
+		rt.mapper = make(map[string]*routeNode)
 	})
 	return rt
 }

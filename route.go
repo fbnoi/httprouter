@@ -60,7 +60,7 @@ func (r *routeNode) search(path string, getParams func() *Params) (*routeNode, *
 				k = child
 				//save the params if necessary
 				if child.wildcard {
-					*ps = append(*ps, Param{key: child.part, value: parts[at]})
+					*ps = append(*ps, &Param{key: child.part, value: parts[at]})
 				}
 				// then we need to go further
 				ptr = 0

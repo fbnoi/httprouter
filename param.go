@@ -19,32 +19,32 @@ type Param struct {
 	value interface{}
 }
 
-type Params []Param
+type Params []*Param
 
-func (ps Params) Add(name string, val interface{}) Params {
-	ps = append(ps, Param{key: name, value: val})
+func (ps *Params) Add(name string, val interface{}) *Params {
+	*ps = append(*ps, &Param{key: name, value: val})
 	return ps
 }
 
-func (ps Params) AddRoute(r *routeNode) Params {
+func (ps *Params) AddRoute(r *routeNode) *Params {
 	return ps.Add(route_key, r)
 }
 
-func (ps Params) Remove(name string) Params {
-	if len(ps) == 0 {
+func (ps *Params) Remove(name string) *Params {
+	if len(*ps) == 0 {
 		return ps
 	}
-	for i, p := range ps {
+	for i, p := range *ps {
 		if p.key == name {
-			ps = append(ps[:i], ps[i+1:]...)
+			*ps = append((*ps)[:i], (*ps)[i+1:]...)
 		}
 	}
 
 	return ps
 }
 
-func (ps Params) ByName(name string) interface{} {
-	for _, p := range ps {
+func (ps *Params) ByName(name string) interface{} {
+	for _, p := range *ps {
 		if p.key == name {
 			return p.value
 		}
@@ -52,23 +52,23 @@ func (ps Params) ByName(name string) interface{} {
 	return nil
 }
 
-func (ps Params) GetString(name string) string {
+func (ps *Params) GetString(name string) string {
 	return ps.ByName(name).(string)
 }
 
-func (ps Params) GetInt(name string) int {
+func (ps *Params) GetInt(name string) int {
 	return ps.ByName(name).(int)
 }
 
-func (ps Params) GetBytes(name string) []byte {
+func (ps *Params) GetBytes(name string) []byte {
 	return ps.ByName(name).([]byte)
 }
 
-func (ps Params) GetBool(name string) bool {
+func (ps *Params) GetBool(name string) bool {
 	return ps.ByName(name).(bool)
 }
 
-func (ps Params) GetRoute() *routeNode {
+func (ps *Params) GetRoute() *routeNode {
 	return ps.ByName(route_key).(*routeNode)
 }
 
@@ -98,14 +98,14 @@ func DecodeQuery(query string) (Params, error) {
 					vals = append(vals, value)
 				}
 			}
-			ps = append(ps, Param{key: pairs[0], value: vals})
+			ps = append(ps, &Param{key: pairs[0], value: vals})
 
 			return ps, nil
 		}
 
 		// to an appropriate type value
 		val := toAppropriateType(strings.Trim(pairs[1], " "))
-		ps = append(ps, Param{key: pairs[0], value: val})
+		ps = append(ps, &Param{key: pairs[0], value: val})
 	}
 
 	return ps, nil

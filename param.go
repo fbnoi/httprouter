@@ -16,12 +16,12 @@ func PS() (ps Params) {
 
 type Param struct {
 	key   string
-	value interface{}
+	value any
 }
 
 type Params []*Param
 
-func (ps *Params) Add(name string, val interface{}) *Params {
+func (ps *Params) Add(name string, val any) *Params {
 	*ps = append(*ps, &Param{key: name, value: val})
 	return ps
 }
@@ -43,7 +43,7 @@ func (ps *Params) Remove(name string) *Params {
 	return ps
 }
 
-func (ps *Params) ByName(name string) interface{} {
+func (ps *Params) ByName(name string) any {
 	for _, p := range *ps {
 		if p.key == name {
 			return p.value
@@ -89,7 +89,7 @@ func DecodeQuery(query string) (Params, error) {
 		// value like 1,2,3,,4, get [1,2,3,4]
 		if strings.Contains(pairs[1], ",") {
 			valueSlice := strings.Split(pairs[1], ",")
-			vals := []interface{}{}
+			vals := []any{}
 			for _, value := range valueSlice {
 
 				// to an appropriate type value
@@ -111,10 +111,10 @@ func DecodeQuery(query string) (Params, error) {
 	return ps, nil
 }
 
-// toAppropriateType convert value of interface{} to a appropriate type
+// toAppropriateType convert value of any to a appropriate type
 // int, float32, float64 and bool are returned as it is
 // string may convert to int, float64, bool and slice of them.
-func toAppropriateType(val interface{}) interface{} {
+func toAppropriateType(val any) any {
 	typ := reflect.TypeOf(val).Kind()
 	if typ == reflect.String {
 		str := val.(string)
@@ -140,7 +140,7 @@ func toAppropriateType(val interface{}) interface{} {
 		// may be a slice of something?
 		if strings.Contains(str, ",") {
 			strSlice := strings.Split(str, ",")
-			valSlice := []interface{}{}
+			valSlice := []any{}
 			for _, strstr := range strSlice {
 				valSlice = append(valSlice, toAppropriateType(strstr))
 			}

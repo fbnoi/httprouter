@@ -44,14 +44,15 @@ func (r *routeNode) search(path string, getParams func() *Params) (*routeNode, *
 		k        = r
 		at, ptr  = 1, 0
 		ps       = getParams()
+		find     = false
+		child    *routeNode
 	)
 	// beautyPath always start with '/' and the begin of the path must be "".
 	// search from root entry's children and skip the begin of path slice.
 	// it means that root must match with the begin of path slice.
 	for at >= 1 && at < len(parts) {
-		find := false
 		for ptr < len(k.children) {
-			child := k.children[ptr]
+			child = k.children[ptr]
 			// if find fit node
 			if child.fit(parts[at]) {
 				// push Iterator to same position
@@ -98,13 +99,15 @@ func (r *routeNode) search(path string, getParams func() *Params) (*routeNode, *
 func (r *routeNode) addPath(name, method, path string, handler HandleFunc) *routeNode {
 	node := r.pave(path)
 	var (
-		pc  = node.parent.children
-		ptr = 0
+		pc       = node.parent.children
+		ptr      = 0
+		sibling  *routeNode
+		conflict string
 	)
 	for ptr < len(pc) {
-		sibling := pc[ptr]
+		sibling = pc[ptr]
 		if node != sibling && sibling.leaf {
-			conflict := fmt.Sprintf("route [%s] conflict with [%s]", path, sibling.fullPath)
+			conflict = fmt.Sprintf("route [%s] conflict with [%s]", path, sibling.fullPath)
 			if sibling.wildcard != node.wildcard {
 				switch {
 				case sibling.wildcard && sibling.pattern != nil && sibling.pattern.MatchString(node.part):
@@ -137,12 +140,13 @@ func (r *routeNode) pave(path string) *routeNode {
 		currentNode = r
 		lOPart      = len(parts)
 		i           int
+		node        *routeNode
 	)
 	for i = 0; i < lOPart; i++ {
 		matched := false
 		pathNode, ptr := resolvePathPart2Node(parts[i]), 0
 		for ptr < len(currentNode.children) {
-			node := currentNode.children[ptr]
+			node = currentNode.children[ptr]
 			if pathNode.part == node.part && pathNode.wildcard == node.wildcard {
 				matched = true
 				if i >= lOPart-1 {
